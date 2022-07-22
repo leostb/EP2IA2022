@@ -10,12 +10,6 @@ ns = 1  # Número de saídas
 h = 10  # Número de perceptrons na camada escondida
 
 
-# funcao_de_ativação = f
-
-# inicializar hidden layer
-
-
-
 def prepara_dados(arquivo, lag):
     ''' A ideia seria montar as tuplas de entrada e label, mas não sei se realmente vai precisar'''
     series = np.array(open(arquivo).read().splitlines(), dtype=float)
@@ -79,7 +73,7 @@ def calc_grad(X, Yd, A, B, N, ns):
     Y = sigmoid(-Yin)
     erro = Y - Yd
 
-    gl = np.multiply(np.ones(Y.shape) - Y, Y)
+    gl = np.multiply(1 - Y, Y)
 
     Znovo = Z[:, 0:Z.shape[1] - 1]
 
@@ -115,10 +109,10 @@ def rna():
         dJdA, dJdB = calc_grad(X, Yd, A, B, N, ns)
 
         alfa = calc_alfa(dJdA, dJdB, A, B, X, Yd, N, ne, ns)
-        A = A - alfa * dJdA;
-        B = B - alfa * dJdB;
+        A = A - alfa * dJdA
+        B = B - alfa * dJdB
 
-        Y = calcular_saida(A, B, X, N);
+        Y = calcular_saida(A, B, X, N)
 
         erro = Y - Yd
         EQM = (erro ** 2).mean()
@@ -139,7 +133,7 @@ def normalizar(M):
 def calc_alfa(dJdA,dJdB,A,B,X,Yd,N,ne,ns):
     dv= -np.concatenate([dJdA.flatten(),dJdB.flatten()])
 
-    alfa_u = random.random() # Ver se precisa ser distribuição normal
+    alfa_u = random.random()
 
     An = A - alfa_u * dJdA
     Bn = B - alfa_u * dJdB
