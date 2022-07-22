@@ -1,3 +1,4 @@
+import math
 import random
 import matplotlib.pyplot as plt
 import numpy as np
@@ -14,11 +15,13 @@ h = 10  # Número de perceptrons na camada escondida
 # inicializar hidden layer
 
 
-# normalizar
 
 def prepara_dados(arquivo, lag):
     ''' A ideia seria montar as tuplas de entrada e label, mas não sei se realmente vai precisar'''
-    series = open(arquivo).read().splitlines()
+    series = np.array(open(arquivo).read().splitlines(), dtype=float)
+    cria_grafico(series, "Serie Original")
+    series = normalizar(series)
+    cria_grafico(series, "Serie normalizada")
     X, y = [], []
     for i in range(len(series)):
         end_ix = i + lag
@@ -29,12 +32,14 @@ def prepara_dados(arquivo, lag):
         y.append(seq_y)
     return np.array(X, dtype=float), np.array(y, dtype=float)
 
-def cria_grafico(series):
+
+def cria_grafico(series, title=""):
     i = 1
     line = []
     for value in series:
         line.append(value)  # Remove o \n que está no fim da linha do txt
     plt.plot(line)
+    plt.title(label=title)
     plt.show()
 
 
@@ -60,8 +65,9 @@ def calcular_saida(A, B, X, N):
     Y = sigmoid(Yin)
     return Y
 
+
 def sigmoid(z):
-    return 1.0/(1.0+np.exp(-z))
+    return 1.0 / (1.0 + np.exp(-z))
 
 
 def calc_grad(X, Yd, A, B, N, ns):
@@ -76,13 +82,13 @@ def calc_grad(X, Yd, A, B, N, ns):
     gl = np.multiply(np.ones(Y.shape) - Y, Y)
 
     Znovo = Z[:, 0:Z.shape[1] - 1]
-    ones = np.ones(Znovo.shape)
-    fl = np.multiply(ones - Znovo, Znovo)
 
-    dJdB = (1/N) * np.matmul(np.multiply(erro, gl).T, Z)
+    fl = np.multiply(1 - Znovo, Znovo)
 
-    dJdZ = np.matmul(np.multiply(erro, gl),  B[:, 0:B.shape[1] - 1])
-    dJdA = (1/N) * np.matmul(np.multiply(dJdZ, fl).T, X)
+    dJdB = (1 / N) * np.matmul(np.multiply(erro, gl).T, Z)
+
+    dJdZ = np.matmul(np.multiply(erro, gl), B[:, 0:B.shape[1] - 1])
+    dJdA = (1 / N) * np.matmul(np.multiply(dJdZ, fl).T, X)
     return dJdA, dJdB
 
 
@@ -96,32 +102,86 @@ def rna():
     Y = calcular_saida(A, B, X, N)
 
     erro = Y - Yd
-    EQM = (erro**2).mean()
+    EQM = (erro ** 2).mean()
 
     nep = 0
-    nepocasmax = 1000
+    nepocasmax = 10000
     alfa = 0.95
     vet = []
     vet.append(EQM)
 
     while EQM > 1e-3 and nep < nepocasmax:
         nep = nep + 1
-        dJdA, dJdB= calc_grad(X, Yd, A, B, N, ns)
-       
-        # alfa = calc_alfa(dJdA, dJdB, A, B, X, Yd, N, ne, ns)
+        dJdA, dJdB = calc_grad(X, Yd, A, B, N, ns)
+
+        alfa = calc_alfa(dJdA, dJdB, A, B, X, Yd, N, ne, ns)
         A = A - alfa * dJdA;
         B = B - alfa * dJdB;
-    
+
         Y = calcular_saida(A, B, X, N);
 
         erro = Y - Yd
         EQM = (erro ** 2).mean()
         vet.append(EQM)
-        print('\nNumero Epocas = %d alfa = %2.4f EQM = %2.4f' %(nep, alfa, EQM))
+        print('\nNumero Epocas = %d alfa = %2.4f EQM = %2.4f' % (nep, alfa, EQM))
     plt.plot(vet)
     plt.show()
 
     return A, B
+
+
+def normalizar(M):
+    dif = np.max(M) - np.min(M)
+    z = (M - np.min(M)) / dif
+    return z
+
+
+def calc_alfa(dJdA,dJdB,A,B,X,Yd,N,ne,ns):
+    dv= -np.concatenate([dJdA.flatten(),dJdB.flatten()])
+
+    alfa_u = random.random() # Ver se precisa ser distribuição normal
+
+    An = A - alfa_u * dJdA
+    Bn = B - alfa_u * dJdB
+
+    dJdAn, dJdBn = calc_grad(X,Yd,An,Bn,N,ns)
+
+    g = np.concatenate([dJdAn.flatten(), dJdBn.flatten()])
+
+    hl = np.matmul(g.T,dv)
+
+    alfa_l = 0
+    while hl < 0:
+        alfa_l = alfa_u
+        alfa_u = 2 * alfa_u
+        An = A - alfa_u * dJdA
+        Bn = B - alfa_u * dJdB
+        dJdAn, dJdBn = calc_grad(X,Yd,An,Bn,N,ns)
+        g = np.concatenate([dJdAn.flatten(), dJdBn.flatten()])
+        hl = np.matmul(g.T, dv)
+
+    epsilon = 1e-5
+    kmax = math.ceil(math.log2((alfa_u-alfa_l)/epsilon))
+    it =0
+    itmax = 20
+    alfa_m = (alfa_l+alfa_u)/2
+
+    while it<kmax & it <itmax & abs(hl)>1e-5:
+        it=it+1
+        An = A - alfa_m * dJdA
+        Bn = B - alfa_m * dJdB
+        dJdAn, dJdBn = calc_grad(X,Yd,An,Bn,N,ns)
+        g = np.concatenate([dJdAn.flatten(), dJdBn.flatten()])
+        hl = np.matmul(g.T, dv)
+        if hl > 0:
+            alfa_u = alfa_m
+        elif hl < 0:
+            alfa_l = alfa_m
+        else:
+            break
+
+        alfa_m = (alfa_l+alfa_u)/2
+    return alfa_m
 
 
 rna()
