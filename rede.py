@@ -6,16 +6,15 @@ from numpy import shape
 
 L = 10  # Número de entradas usadas para série temporal
 ns = 1  # Número de saídas
-
 h = 10  # Número de perceptrons na camada escondida
 
 
 def prepara_dados(arquivo, lag):
     ''' A ideia seria montar as tuplas de entrada e label, mas não sei se realmente vai precisar'''
     series = np.array(open(arquivo).read().splitlines(), dtype=float)
-    cria_grafico(series, "Serie Original")
+    #cria_grafico(series, "Serie Original")
     series = normalizar(series)
-    cria_grafico(series, "Serie normalizada")
+    #cria_grafico(series, "Serie normalizada")
     X, y = [], []
     for i in range(len(series)):
         end_ix = i + lag
@@ -31,7 +30,7 @@ def cria_grafico(series, title=""):
     i = 1
     line = []
     for value in series:
-        line.append(value)  # Remove o \n que está no fim da linha do txt
+        line.append(value)
     plt.plot(line)
     plt.title(label=title)
     plt.show()
@@ -51,6 +50,14 @@ def divide_treinamento_validação(dados):
     return treinamento, dados
 
 
+@np.vectorize
+def relu(x):
+    if x <= 0:
+        return 0
+    else:
+        return x
+
+
 def calcular_saida(A, B, X, N):
     Zin = np.matmul(X, A.T)
     Z = sigmoid(Zin)
@@ -66,11 +73,11 @@ def sigmoid(z):
 
 def calc_grad(X, Yd, A, B, N, ns):
     Zin = np.matmul(X, A.T)
-    Z = sigmoid(-Zin)
+    Z = sigmoid(Zin)
     Z = np.concatenate((Z, np.ones((Z.shape[0], 1))), axis=1)
 
     Yin = np.matmul(Z, B.T)
-    Y = sigmoid(-Yin)
+    Y = sigmoid(Yin)
     erro = Y - Yd
 
     gl = np.multiply(1 - Y, Y)
@@ -88,6 +95,8 @@ def calc_grad(X, Yd, A, B, N, ns):
 
 def rna():
     X, Yd = prepara_dados("serie1_trein.txt", L)
+    # np.savetxt("x.csv", np.around(X,4), delimiter=";", fmt='%f')
+    # np.savetxt("yd.csv", Yd,delimiter=";")
     Yd = Yd.reshape((Yd.shape[0], 1))
     N, ne = shape(X)
     X = np.concatenate((X, np.ones((X.shape[0], 1))), axis=1)
@@ -130,19 +139,19 @@ def normalizar(M):
     return z
 
 
-def calc_alfa(dJdA,dJdB,A,B,X,Yd,N,ne,ns):
-    dv= -np.concatenate([dJdA.flatten(),dJdB.flatten()])
+def calc_alfa(dJdA, dJdB, A, B, X, Yd, N, ne, ns):
+    dv = -np.concatenate([dJdA.flatten(), dJdB.flatten()])
 
     alfa_u = random.random()
 
     An = A - alfa_u * dJdA
     Bn = B - alfa_u * dJdB
 
-    dJdAn, dJdBn = calc_grad(X,Yd,An,Bn,N,ns)
+    dJdAn, dJdBn = calc_grad(X, Yd, An, Bn, N, ns)
 
     g = np.concatenate([dJdAn.flatten(), dJdBn.flatten()])
 
-    hl = np.matmul(g.T,dv)
+    hl = np.matmul(g.T, dv)
 
     alfa_l = 0
     while hl < 0:
@@ -150,21 +159,21 @@ def calc_alfa(dJdA,dJdB,A,B,X,Yd,N,ne,ns):
         alfa_u = 2 * alfa_u
         An = A - alfa_u * dJdA
         Bn = B - alfa_u * dJdB
-        dJdAn, dJdBn = calc_grad(X,Yd,An,Bn,N,ns)
+        dJdAn, dJdBn = calc_grad(X, Yd, An, Bn, N, ns)
         g = np.concatenate([dJdAn.flatten(), dJdBn.flatten()])
         hl = np.matmul(g.T, dv)
 
     epsilon = 1e-5
-    kmax = math.ceil(math.log2((alfa_u-alfa_l)/epsilon))
-    it =0
+    kmax = math.ceil(math.log2((alfa_u - alfa_l) / epsilon))
+    it = 0
     itmax = 20
-    alfa_m = (alfa_l+alfa_u)/2
+    alfa_m = (alfa_l + alfa_u) / 2
 
-    while it<kmax & it <itmax & abs(hl)>1e-5:
-        it=it+1
+    while it < kmax & it < itmax & abs(hl) > 1e-5:
+        it = it + 1
         An = A - alfa_m * dJdA
         Bn = B - alfa_m * dJdB
-        dJdAn, dJdBn = calc_grad(X,Yd,An,Bn,N,ns)
+        dJdAn, dJdBn = calc_grad(X, Yd, An, Bn, N, ns)
         g = np.concatenate([dJdAn.flatten(), dJdBn.flatten()])
         hl = np.matmul(g.T, dv)
         if hl > 0:
@@ -174,7 +183,7 @@ def calc_alfa(dJdA,dJdB,A,B,X,Yd,N,ne,ns):
         else:
             break
 
-        alfa_m = (alfa_l+alfa_u)/2
+        alfa_m = (alfa_l + alfa_u) / 2
     return alfa_m
 
 
