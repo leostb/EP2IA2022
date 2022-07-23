@@ -7,14 +7,15 @@ from numpy import shape
 L = 10  # Número de entradas usadas para série temporal
 ns = 1  # Número de saídas
 h = 10  # Número de perceptrons na camada escondida
+arquivo_entrada = "serie4_trein.txt"
 
 
 def prepara_dados(arquivo, lag):
     ''' A ideia seria montar as tuplas de entrada e label, mas não sei se realmente vai precisar'''
     series = np.array(open(arquivo).read().splitlines(), dtype=float)
-    #cria_grafico(series, "Serie Original")
+    cria_grafico(series, "Serie Original")
     series = normalizar(series)
-    #cria_grafico(series, "Serie normalizada")
+    cria_grafico(series, "Serie normalizada")
     X, y = [], []
     for i in range(len(series)):
         end_ix = i + lag
@@ -27,7 +28,6 @@ def prepara_dados(arquivo, lag):
 
 
 def cria_grafico(series, title=""):
-    i = 1
     line = []
     for value in series:
         line.append(value)
@@ -36,39 +36,27 @@ def cria_grafico(series, title=""):
     plt.show()
 
 
-def divide_treinamento_validação(dados):
+def divide_treinamento_teste(dados, labels, partition):
     """ (list) -> (list), (list)
-        Recebe uma lista e retorna os dados divididos em treinamento e teste
+        Recebe uma ndarray e retorna os dados divididos em treinamento e teste
     """
+    tamanho_orig = len(dados)
+    permuta_x, permuta_y = unison_shuffled_copies(dados, labels)
 
-    tamanho_orig = tamanho = len(dados)
-    treinamento = []
-    while tamanho > 2 * tamanho_orig / 3:  # Condição de parada, 1/3 para treinamento
-        indice = random.randint(0, tamanho - 1)  # Sorteia um índice para compor o treinamento, sem reposição
-        treinamento.append(dados.pop(indice))  # Retira da lista original
-        tamanho = len(dados)
-    return treinamento, dados
+    corte = math.floor(tamanho_orig * partition)
+    treinamento_x, teste_x = permuta_x[0:corte], permuta_x[corte:]
+    treinamento_y, teste_y = permuta_y[0:corte], permuta_x[corte:]
 
-
-@np.vectorize
-def relu(x):
-    if x <= 0:
-        return 0
-    else:
-        return x
+    return treinamento_x, teste_x, treinamento_y, teste_y
 
 
-def calcular_saida(A, B, X, N):
+def calcular_saida(A, B, X):
     Zin = np.matmul(X, A.T)
     Z = sigmoid(Zin)
     Z = np.concatenate((Z, np.ones((Z.shape[0], 1))), axis=1)
     Yin = np.matmul(Z, B.T)
     Y = sigmoid(Yin)
     return Y
-
-
-def sigmoid(z):
-    return 1.0 / (1.0 + np.exp(-z))
 
 
 def calc_grad(X, Yd, A, B, N, ns):
@@ -93,8 +81,7 @@ def calc_grad(X, Yd, A, B, N, ns):
     return dJdA, dJdB
 
 
-def rna():
-    X, Yd = prepara_dados("serie1_trein.txt", L)
+def rna(X, Yd):
     # np.savetxt("x.csv", np.around(X,4), delimiter=";", fmt='%f')
     # np.savetxt("yd.csv", Yd,delimiter=";")
     Yd = Yd.reshape((Yd.shape[0], 1))
@@ -102,7 +89,7 @@ def rna():
     X = np.concatenate((X, np.ones((X.shape[0], 1))), axis=1)
     A = np.random.rand(h, ne + 1)
     B = np.random.rand(ns, h + 1)
-    Y = calcular_saida(A, B, X, N)
+    Y = calcular_saida(A, B, X)
 
     erro = Y - Yd
     EQM = (erro ** 2).mean()
@@ -110,8 +97,7 @@ def rna():
     nep = 0
     nepocasmax = 10000
     alfa = 0.95
-    vet = []
-    vet.append(EQM)
+    vet = [EQM]
 
     while EQM > 1e-3 and nep < nepocasmax:
         nep = nep + 1
@@ -121,22 +107,16 @@ def rna():
         A = A - alfa * dJdA
         B = B - alfa * dJdB
 
-        Y = calcular_saida(A, B, X, N)
+        Y = calcular_saida(A, B, X)
 
         erro = Y - Yd
         EQM = (erro ** 2).mean()
         vet.append(EQM)
-        print('\nNumero Epocas = %d alfa = %2.4f EQM = %2.4f' % (nep, alfa, EQM))
+        print('\nNumero Epocas = %d alfa = %2.4f EQM = %2.8f' % (nep, alfa, EQM))
     plt.plot(vet)
     plt.show()
 
     return A, B
-
-
-def normalizar(M):
-    dif = np.max(M) - np.min(M)
-    z = (M - np.min(M)) / dif
-    return z
 
 
 def calc_alfa(dJdA, dJdB, A, B, X, Yd, N, ne, ns):
@@ -187,4 +167,71 @@ def calc_alfa(dJdA, dJdB, A, B, X, Yd, N, ne, ns):
     return alfa_m
 
 
-rna()
+def avaliar(A, B, x_teste, y_teste):
+    x_teste = np.concatenate((x_teste, np.ones((x_teste.shape[0], 1))), axis=1)
+    Y = calcular_saida(A, B, x_teste)
+    erro = Y - y_teste
+    EQM = (erro ** 2).mean()
+    print("Erro no conjunto de teste %.6f" % (EQM))
+    return EQM
+
+
+def simples():
+    X, Yd = prepara_dados(arquivo_entrada, L)
+    X, x_teste, Yd, y_teste = divide_treinamento_teste(X, Yd, 2 / 3)
+    A, B = rna(X, Yd)
+    avaliar(A, B, x_teste, y_teste)
+
+
+def k_fold(k):
+    X_inteiro, Y_inteiro = prepara_dados(arquivo_entrada, L)
+    permuta_x, permuta_y = unison_shuffled_copies(X_inteiro, Y_inteiro)
+
+    vet_eqm = []
+
+    for i in range(len(permuta_x)):
+        A, B = rna(permuta_x[i], permuta_y[i])
+        EQM = avaliar(A, B, complementar(permuta_x,  permuta_x[i]), complementar(permuta_x,  permuta_x[i]))
+        vet_eqm.append(EQM)
+
+
+
+
+# Funções auxiliares
+
+def normalizar(M):
+    dif = np.max(M) - np.min(M)
+    z = (M - np.min(M)) / dif
+    return z
+
+
+def particionar(dados, labels, folds):
+    tamanho_orig = len(dados)
+    permuta_x, permuta_y = unison_shuffled_copies(dados, labels)
+    return [np.array_split(permuta_x, folds)], [np.array_split(permuta_y, folds)]
+
+
+def unison_shuffled_copies(a, b):
+    assert len(a) == len(b)
+    p = np.random.permutation(len(a))
+    return a[p], b[p]
+
+
+def sigmoid(z):
+    return 1.0 / (1.0 + np.exp(-z))
+
+
+@np.vectorize
+def relu(x):
+    if x <= 0:
+        return 0
+    else:
+        return x
+
+
+def complementar(X_inteiro, X):
+    return X_inteiro - X
+
+
+if __name__ == "__main__":
+    k_fold(10)
