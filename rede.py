@@ -3,18 +3,24 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import shape
+from sklearn.preprocessing import MinMaxScaler
 
 L = 10  # Número de entradas usadas para série temporal
 ns = 1  # Número de saídas
-h = 10  # Número de perceptrons na camada escondida
-arquivo_entrada = "serie4_trein.txt"
+h = 5  # Número de perceptrons na camada escondida
+nepocasmax = 100
+arquivo_entrada = "serie2_trein.txt"
 
 
-def prepara_dados(arquivo, lag):
+def prepara_dados(arquivo, lag, scaler=None):
     ''' A ideia seria montar as tuplas de entrada e label, mas não sei se realmente vai precisar'''
     series = np.array(open(arquivo).read().splitlines(), dtype=float)
     cria_grafico(series, "Serie Original")
-    series = normalizar(series)
+
+    if scaler is None:
+        scaler = Scaler(series)
+
+    series = scaler.normalizar(series)
     cria_grafico(series, "Serie normalizada")
     X, y = [], []
     for i in range(len(series)):
@@ -36,16 +42,19 @@ def cria_grafico(series, title=""):
     plt.show()
 
 
-def divide_treinamento_teste(dados, labels, partition):
+def divide_treinamento_teste(dados, labels, partition, shuffle=True):
     """ (list) -> (list), (list)
         Recebe uma ndarray e retorna os dados divididos em treinamento e teste
     """
     tamanho_orig = len(dados)
-    permuta_x, permuta_y = unison_shuffled_copies(dados, labels)
+    permuta_x = dados
+    permuta_y = labels
+    if shuffle:
+        permuta_x, permuta_y = unison_shuffled_copies(dados, labels)
 
     corte = math.floor(tamanho_orig * partition)
     treinamento_x, teste_x = permuta_x[0:corte], permuta_x[corte:]
-    treinamento_y, teste_y = permuta_y[0:corte], permuta_x[corte:]
+    treinamento_y, teste_y = permuta_y[0:corte], permuta_y[corte:]
 
     return treinamento_x, teste_x, treinamento_y, teste_y
 
@@ -66,7 +75,8 @@ def calc_grad(X, Yd, A, B, N, ns):
 
     Yin = np.matmul(Z, B.T)
     Y = sigmoid(Yin)
-    erro = Y - Yd
+
+    erro = calcular_erro(Y, Yd)
 
     gl = np.multiply(1 - Y, Y)
 
@@ -91,11 +101,10 @@ def rna(X, Yd):
     B = np.random.rand(ns, h + 1)
     Y = calcular_saida(A, B, X)
 
-    erro = Y - Yd
+    erro = calcular_erro(Y, Yd)
     EQM = (erro ** 2).mean()
 
     nep = 0
-    nepocasmax = 10000
     alfa = 0.95
     vet = [EQM]
 
@@ -109,12 +118,11 @@ def rna(X, Yd):
 
         Y = calcular_saida(A, B, X)
 
-        erro = Y - Yd
+        erro = calcular_erro(Y, Yd)
         EQM = (erro ** 2).mean()
         vet.append(EQM)
         print('\nNumero Epocas = %d alfa = %2.4f EQM = %2.8f' % (nep, alfa, EQM))
-    plt.plot(vet)
-    plt.show()
+    cria_grafico(vet, "Erro quadrático Médio ao longo das épocas")
 
     return A, B
 
@@ -170,7 +178,8 @@ def calc_alfa(dJdA, dJdB, A, B, X, Yd, N, ne, ns):
 def avaliar(A, B, x_teste, y_teste):
     x_teste = np.concatenate((x_teste, np.ones((x_teste.shape[0], 1))), axis=1)
     Y = calcular_saida(A, B, x_teste)
-    erro = Y - y_teste
+
+    erro = calcular_erro(Y, y_teste)
     EQM = (erro ** 2).mean()
     print("Erro no conjunto de teste %.6f" % (EQM))
     return EQM
@@ -191,18 +200,11 @@ def k_fold(k):
 
     for i in range(len(permuta_x)):
         A, B = rna(permuta_x[i], permuta_y[i])
-        EQM = avaliar(A, B, complementar(permuta_x,  permuta_x[i]), complementar(permuta_x,  permuta_x[i]))
+        EQM = avaliar(A, B, complementar(permuta_x, permuta_x[i]), complementar(permuta_x, permuta_x[i]))
         vet_eqm.append(EQM)
 
 
-
-
 # Funções auxiliares
-
-def normalizar(M):
-    dif = np.max(M) - np.min(M)
-    z = (M - np.min(M)) / dif
-    return z
 
 
 def particionar(dados, labels, folds):
@@ -233,5 +235,28 @@ def complementar(X_inteiro, X):
     return X_inteiro - X
 
 
+def calcular_erro(x, y):
+    if x.shape[0] == y.shape[0] and x.shape[1] == 1:
+        y = y.reshape((y.shape[0], 1))
+
+    assert (x.shape == y.shape)
+    return x - y
+
+
+class Scaler:
+
+    def __init__(self, M):
+        self.min = np.min(M)
+        self.max = np.max(M)
+        self.dif = self.max - self.min
+
+    def normalizar(self, M):
+        z = (M - self.min) / self.dif
+        return z
+
+    def desnormalizar(self, M):
+        return M * self.dif + self.min
+
+
 if __name__ == "__main__":
-    k_fold(10)
+    simples()
