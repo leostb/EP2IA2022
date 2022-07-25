@@ -13,7 +13,8 @@ from rede import prepara_dados, divide_treinamento_teste, Scaler
 
 
 arquivo_entrada = "serie1_trein.txt"
-L = 10
+L = 50
+
 
 arquivo_inteiro = np.array(open(arquivo_entrada).read().splitlines(), dtype=float)
 scaler = Scaler(arquivo_inteiro)
