@@ -3,17 +3,15 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 from numpy import shape
-from sklearn.preprocessing import MinMaxScaler
 
 L = 10  # Número de entradas usadas para série temporal
 ns = 1  # Número de saídas
 h = 5  # Número de perceptrons na camada escondida
 nepocasmax = 100
-arquivo_entrada = "serie2_trein.txt"
+arquivo_entrada = "serie4_trein.txt"
 
 
 def prepara_dados(arquivo, lag, scaler=None):
-    ''' A ideia seria montar as tuplas de entrada e label, mas não sei se realmente vai precisar'''
     series = np.array(open(arquivo).read().splitlines(), dtype=float)
     cria_grafico(series, "Serie Original")
 
@@ -92,8 +90,6 @@ def calc_grad(X, Yd, A, B, N, ns):
 
 
 def rna(X, Yd):
-    # np.savetxt("x.csv", np.around(X,4), delimiter=";", fmt='%f')
-    # np.savetxt("yd.csv", Yd,delimiter=";")
     Yd = Yd.reshape((Yd.shape[0], 1))
     N, ne = shape(X)
     X = np.concatenate((X, np.ones((X.shape[0], 1))), axis=1)
@@ -221,18 +217,6 @@ def unison_shuffled_copies(a, b):
 
 def sigmoid(z):
     return 1.0 / (1.0 + np.exp(-z))
-
-
-@np.vectorize
-def relu(x):
-    if x <= 0:
-        return 0
-    else:
-        return x
-
-
-def complementar(X_inteiro, X):
-    return X_inteiro - X
 
 
 def calcular_erro(x, y):
